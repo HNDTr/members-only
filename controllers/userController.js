@@ -2,6 +2,7 @@
 const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
 const db = require('../db/queries')
+require('dotenv').config();
 
 const validateUser = [
     body(['firstName', 'lastName'])
@@ -52,11 +53,45 @@ const validateUser = [
     })
 ]
 
+const validateMember = [
+    body('email')
+    .trim()
+    .isEmail().withMessage('Must be valid email address.')
+    .normalizeEmail()
+    .custom(async (email) => {
+        const result = await db.findEmail(email);
+
+        if (result.rows.length == 0) {
+            throw new Error('Email is not register.');
+        }
+
+        return true;
+    }),
+
+    body('password')
+    .notEmpty().withMessage('Password is required.')
+    .custom((value) => {
+        if (value.length > 0 && value !== process.env.MEMBERSHIP_SECRET_PASSCODE) {
+            throw new Error('Secret code do not match.');
+        }
+
+        return true;
+    })
+]
+
 // bcrypt password before create into database 
 
 
 async function getSignUpPage(req, res){
     res.render('forms/signupPage', {errors: []});
+}
+
+async function getLoginPage(req, res) {
+    res.render('forms/loginPage')
+}
+
+async function getMembershipPage(req, res) {
+    res.render('forms/membershipPage', {errors: []})
 }
 
 const userCreate = [
@@ -85,10 +120,31 @@ const userCreate = [
     }
 ]
 
-async function getLoginPage(req, res) {
-    res.render('forms/loginPage')
-}
+const membershipChange = [
+    validateMember,
+    (req, res, next) => { 
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).render('forms/membershipPage', {
+                errors: errors.array(), // u can pass another object that have previous body info so that when render after errors, users don't have to fills everything again, then pass those as values 
+            });
+        }
+
+        next();
+    },
+    async (req, res, next) => {
+        // update user membership status
+        try {
+            
+            await db.updateUserMembership(req.body.email);
+            res.redirect('/');
+        } catch (err) {
+            console.error(err);
+            next(err);
+        }
+    }
+]
 
 
 
-module.exports = {getSignUpPage, userCreate, getLoginPage}
+module.exports = {getSignUpPage, userCreate, getLoginPage, getMembershipPage, membershipChange}

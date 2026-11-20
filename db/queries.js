@@ -25,8 +25,19 @@ async function findUsername(username){
     return rows
 }
 
+async function updateUserMembership(email){
+    const sql = `
+        UPDATE users
+        SET membership = True
+        WHERE email = $1
+    `
+    await pool.query(sql, [email])
+
+}
+
 module.exports = {
     insertUser, 
     findEmail,
-    findUsername
+    findUsername,
+    updateUserMembership
 }
